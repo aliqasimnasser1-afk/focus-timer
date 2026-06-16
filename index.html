@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مؤقت التركيز | علي النخلي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="apple-touch-icon" href="img/favicon.png">
+</head>
+
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-4">
+
+    <div
+        class="bg-slate-800 p-6 sm:p-10 rounded-[2.5rem] shadow-2xl text-center max-w-sm w-full border border-slate-700">
+        <h1 class="text-white text-xl sm:text-2xl font-bold mb-6">مؤقت التركيز</h1>
+
+        <div class="flex justify-center items-center gap-4 sm:gap-6 mb-6 text-white">
+            <div class="text-center">
+                <p class="text-[10px] sm:text-xs text-slate-400 mb-1">دقائق</p>
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <button onclick="updateTime('m', -1)"
+                        class="bg-slate-700 w-8 h-8 rounded-full hover:bg-slate-600">-</button>
+                    <span id="minsDisplay" class="font-bold text-lg sm:text-xl w-6">00</span>
+                    <button onclick="updateTime('m', 1)"
+                        class="bg-slate-700 w-8 h-8 rounded-full hover:bg-slate-600">+</button>
+                </div>
+            </div>
+            <div class="text-center">
+                <p class="text-[10px] sm:text-xs text-slate-400 mb-1">ثواني</p>
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <button onclick="updateTime('s', -1)"
+                        class="bg-slate-700 w-8 h-8 rounded-full hover:bg-slate-600">-</button>
+                    <span id="secsDisplay" class="font-bold text-lg sm:text-xl w-6">00</span>
+                    <button onclick="updateTime('s', 1)"
+                        class="bg-slate-700 w-8 h-8 rounded-full hover:bg-slate-600">+</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="timer" class="text-5xl sm:text-6xl font-mono font-black text-blue-400 mb-8">00:00</div>
+
+        <div id="actionArea" class="flex gap-2">
+            <button id="startBtn" onclick="toggleTimer()"
+                class="flex-1 bg-blue-600 text-white py-3 sm:py-4 rounded-2xl font-bold hover:bg-blue-500">ابدأ</button>
+            <button onclick="resetTimer()"
+                class="flex-1 bg-slate-700 text-white py-3 sm:py-4 rounded-2xl font-bold hover:bg-slate-600">إعادة</button>
+        </div>
+    </div>
+
+    <script>
+        let totalSeconds = 0;
+        let isRunning = false;
+        let interval;
+
+        // نظام صوتي بسيط ومباشر
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let alarmBuffer = null;
+        fetch('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg')
+            .then(res => res.arrayBuffer())
+            .then(data => audioCtx.decodeAudioData(data))
+            .then(buffer => alarmBuffer = buffer);
+
+        let source = null;
+
+        function playAlarm() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            source = audioCtx.createBufferSource();
+            source.buffer = alarmBuffer;
+            source.loop = true;
+            source.connect(audioCtx.destination);
+            source.start(0);
+        }
+
+        function stopAlarm() {
+            if (source) source.stop();
+        }
+
+        function updateTime(type, val) {
+            if (isRunning) return;
+            let mDisplay = document.getElementById('minsDisplay');
+            let sDisplay = document.getElementById('secsDisplay');
+            if (!mDisplay || !sDisplay) return;
+
+            let m = parseInt(mDisplay.innerText);
+            let s = parseInt(sDisplay.innerText);
+            if (type === 'm') m = Math.min(Math.max(m + val, 0), 59);
+            else s = Math.min(Math.max(s + val, 0), 59);
+
+            mDisplay.innerText = m;
+            sDisplay.innerText = s.toString().padStart(2, '0');
+            totalSeconds = (m * 60) + s;
+            document.getElementById('timer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function toggleTimer() {
+            if (totalSeconds <= 0) return;
+            if (!isRunning) {
+                isRunning = true;
+                document.getElementById('startBtn').innerText = "إيقاف";
+                interval = setInterval(() => {
+                    if (totalSeconds <= 0) {
+                        clearInterval(interval);
+                        isRunning = false;
+                        playAlarm();
+                        showAlarmView();
+                        return;
+                    }
+                    totalSeconds--;
+                    let m = Math.floor(totalSeconds / 60);
+                    let s = totalSeconds % 60;
+                    document.getElementById('timer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+                }, 1000);
+            } else {
+                clearInterval(interval);
+                isRunning = false;
+                document.getElementById('startBtn').innerText = "استئناف";
+            }
+        }
+
+        function showAlarmView() {
+            let actionArea = document.getElementById('actionArea');
+            if (actionArea) {
+                actionArea.innerHTML = `
+                    <button onclick="stopAlarmAndReset()" class="w-full bg-red-600 text-white py-4 rounded-2xl font-bold animate-pulse">إيقاف التنبيه</button>
+                `;
+            }
+        }
+
+        function stopAlarmAndReset() {
+            stopAlarm();
+            resetTimer();
+            let actionArea = document.getElementById('actionArea');
+            if (actionArea) {
+                actionArea.innerHTML = `
+                    <button id="startBtn" onclick="toggleTimer()" class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-bold">ابدأ</button>
+                    <button onclick="resetTimer()" class="flex-1 bg-slate-700 text-white py-4 rounded-2xl font-bold">إعادة</button>
+                `;
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(interval);
+            isRunning = false;
+            totalSeconds = 0;
+            let mDisplay = document.getElementById('minsDisplay');
+            let sDisplay = document.getElementById('secsDisplay');
+            let startBtn = document.getElementById('startBtn');
+
+            if (mDisplay && sDisplay) {
+                mDisplay.innerText = "00";
+                sDisplay.innerText = "00";
+                document.getElementById('timer').innerText = "00:00";
+            }
+            if (startBtn) startBtn.innerText = "ابدأ";
+        }
+    </script>
+</body>
+
+</html>
